@@ -1,5 +1,5 @@
 (ns taxi-demo-1.core
-  (:require [notespace.api :as ns]
+  (:require [notespace.api :as ns :refer [view]]
             [notespace.kinds :as k]
             [tablecloth.api :as t]))
 
@@ -15,7 +15,7 @@
 
  "Analysing NYC taxi trip durations, inspired by [Beluga](https://www.kaggle.com/gaborfodor)'s [Kaggle kernel](https://www.kaggle.com/gaborfodor/from-eda-to-the-top-lb-0-367)."
 
- "## The stack -- 
+ "## The stack --
 
 We will be mainbly using libraries by Haifeng Li, Tomasz Sulej and Chris Nuernberger.
 Here are the main ones (and their depednencies upon each other).
@@ -25,18 +25,19 @@ Here are the main ones (and their depednencies upon each other).
  `fastmath` (Tomasz) - misc math algorithms
  ----> `smile`, `apache-commons-math`, etc.
 
- `tech.datatype` (Chris) - fundamentals
+ `dtype-next` (Chris) - fundamentals
 
  `tech.ml.dataset` (Chris) - dataframe infrastructure
- ----> `tech.datatype`
+ ----> `dtype-next`
 
  `tablecloth` (Tomasz) - dataframe grammar
- ----> `tech.ml.dataset`, `tech.datatype`
+ ----> `tech.ml.dataset`, `dtype-next`
 
  `tech.ml` (Chris) - ML platform
- ----> `tech.ml.dataset`, `tech.datatype`, `smile`
+ ----> `tech.ml.dataset`, `dtype-next`, `smile`
 
- `tech.viz` (Chris) - visualization (un top of Vega)"]
+ `tech.viz` (Chris) - visualization (on top of Vega)"]
+
 
 ["## Setup"]
 
@@ -63,8 +64,9 @@ Here are the main ones (and their depednencies upon each other).
          '[tech.v3.libs.smile.classification]
          '[tech.v3.libs.xgboost]
          '[clojure.string :as string]
-         '[clojure.core.memoize :as memoize]
+         '[clojure.core.memoize :as memoize :refer [memo]]
          '[com.rpl.specter :as specter])
+
 
 ["## Data"]
 
@@ -144,7 +146,7 @@ Here we demonstrate just a tiny bit of the useful ways to add informative column
                   (format "#%02x%02x%02x" r g b))))))
 
 (def draw-on-map
-  (memoize/memo
+  (memo
    (fn [dataset
         {:keys [sample-size
                 lat long
@@ -185,7 +187,7 @@ Here we demonstrate just a tiny bit of the useful ways to add informative column
 (def n-clusters 10)
 
 (def compute-pickup-clustering
-  (memoize/memo
+  (memo
    (fn [dataset]
      (-> dataset
          (t/select-columns [:pickup-latitude :pickup-longitude])
@@ -216,7 +218,7 @@ Here we demonstrate just a tiny bit of the useful ways to add informative column
                   :long :repr-longitude}))
 
 
-(defn compute-pickup-clusters [dataset pickup-clustering]
+(defn apply-pickup-clustering [dataset pickup-clustering]
   (-> dataset
       (t/add-or-replace-column
        :pickup-cluster
@@ -240,11 +242,11 @@ Here we demonstrate just a tiny bit of the useful ways to add informative column
 (let [clustering (compute-pickup-clustering training-dataset)]
   (-> training-dataset
       (ds/sample 5000 {:seed 1})
-      (compute-pickup-clusters clustering)
+      (apply-pickup-clustering clustering)
       draw-pickup-clusters))
 
-(def apply-pickup-clusters
-  (memoize/memo
+(def compute-and-apply-pickup-clustering
+  (memo
    (fn [{:keys [dataset training?]
          :as   context}]
      (let [pickup-clustering (if training?
@@ -253,17 +255,18 @@ Here we demonstrate just a tiny bit of the useful ways to add informative column
        (assoc
         context
         :dataset (-> dataset
-                     (compute-pickup-clusters pickup-clustering))
+                     (apply-pickup-clustering pickup-clustering))
         :pickup-clustering pickup-clustering)))))
 
 (def training-context-1
   (-> training-context
-      apply-pickup-clusters))
+      compute-and-apply-pickup-clustering))
 
 (def test-context-1
-  (-> training-context-1
-      (merge test-context)
-      apply-pickup-clusters))
+  (-> test-context
+      (merge (select-keys training-context-1
+                          [:pickup-clustering]))
+      compute-and-apply-pickup-clustering))
 
 ^k/hiccup
 (->> [training-context-1 test-context-1]
@@ -277,30 +280,42 @@ Here we demonstrate just a tiny bit of the useful ways to add informative column
 
 ["### More features"]
 
+(defn add-distance-feature [dataset]
+  (-> dataset
+      (t/add-or-replace-columns
+       {:distance           #(dtype/->double-array
+                              (map fm/haversine-dist
+                                   (% :pickup-longitude)
+                                   (% :pickup-latitude)
+                                   (% :dropoff-longitude)
+                                   (% :dropoff-latitude)))})))
+
+(defn one-hot-encode-pickup-clusters [dataset]
+  (let [[n _] (t/shape dataset)]
+    (-> dataset
+        (t/add-or-replace-columns
+         {:pickup-cluster-str #(map str (:pickup-cluster %))})
+        (t/add-or-replace-columns
+         (->> (range n-clusters)
+              (map (fn [i]
+                     [(keyword (str "pickup-cluster-str-" i))
+                      (fn [_]
+                        (repeat n 0.0))]))
+              (into {})))
+        (ds/categorical->one-hot [:pickup-cluster-str])
+        (t/drop-columns [:pickup-cluster-str]))))
+
 (def preprocess
-  (memoize/memo
+  (memo
    (fn [{:keys [dataset training?]
          :as   context}]
-     (let [[n _] (t/shape dataset)]
-       (merge
-        context
-        {:dataset
-         (-> dataset
-             (t/add-or-replace-columns {:distance       #(dtype/->double-array
-                                                          (map fm/haversine-dist
-                                                               (% :pickup-longitude)
-                                                               (% :pickup-latitude)
-                                                               (% :dropoff-longitude)
-                                                               (% :dropoff-latitude)))
-                                        :pickup-cluster-str #(map str (:pickup-cluster %))})
-             (t/add-or-replace-columns (->> (range n-clusters)
-                                            (map (fn [i]
-                                                   [(keyword (str "pickup-cluster-str-" i))
-                                                    (fn [_]
-                                                      (repeat n 0.0))]))
-                                            (into {})))
-             (ds/categorical->one-hot [:pickup-cluster-str])
-             (t/drop-columns [:pickup-cluster-str :pickup-datetime :store-and-fwd-flag]))})))))
+     (merge
+      context
+      {:dataset
+       (-> dataset
+           add-distance-feature
+           one-hot-encode-pickup-clusters
+           (t/drop-columns [:pickup-datetime :store-and-fwd-flag]))}))))
 
 (def training-context-2
   (-> training-context-1
@@ -339,64 +354,76 @@ Here we demonstrate just a tiny bit of the useful ways to add informative column
     (viz-vega/scatterplot
      :distance :trip-duration))
 
-["## Training"]
+^k/vega
+(-> training-context-2
+    :dataset
+    (t/select-columns [:distance :trip-duration])
+    (ds/sample 10000 {:seed 1})
+    (t/select-rows #(<= (:trip-duration %)
+                        7000))
+    (t/rows :as-maps)
+    (viz-vega/scatterplot
+     :distance :trip-duration))
+
+
+["## Training & Prediction"]
 
 (def target :trip-duration)
 
+(defn compute-model [dataset]
+  (-> dataset
+      (ml/train {:model-type :xgboost/regression
+                 :accuracy   0.01})))
 
-(def train
-  (memoize/memo
-   (fn [{:keys [dataset]
-         :as   training-context}]
-     (-> dataset
-         (modelling/set-inference-target target)
-         (ml/train {:model-type :xgboost/regression
-                    :accuracy   0.01})))))
-
-
-(def model
-  (time
-   (->> training-context-2
-        train)))
-
-["## Prediction"]
-
-(defn predict [{:keys [dataset]
-                :as   context}]
-  (assoc context
-         :predicted (-> dataset
-                        (ml/predict model)
-                        (t/column target))))
+(def compute-and-apply-model
+  (memo
+   (fn [{:keys [dataset training?]
+         :as   context}]
+     (let [model               (if training?
+                                 (-> dataset
+                                     (modelling/set-inference-target target)
+                                     (compute-model))
+                                 (:model context))]
+       (assoc
+        context
+        :predicted (-> dataset
+                       (ml/predict model)
+                       (t/column target))
+        :model model)))))
 
 (def training-context-3
   (-> training-context-2
-      predict))
+      compute-and-apply-model))
 
 (def test-context-3
   (-> test-context-2
-      predict))
+      (merge (select-keys training-context-3
+                          [:model]))
+      compute-and-apply-model))
 
 ["## Evaluation"]
 
 (defn evaluate [{:keys [title dataset predicted]
                  :as context}]
   (let [actual (t/column dataset target)]
-    [:di
+    [:div
      [:h1 title]
      [:h2 "Loss: " (loss/mae predicted actual)]
      [:p/vega
       (-> {:log-predicted (dfn/log predicted)
            :log-actual    (dfn/log actual)
-           :cluster (t/column dataset :pickup-cluster)}
+           ;; :cluster (t/column dataset :pickup-cluster)
+           }
           t/dataset
           (t/rows :as-maps)
           (viz-vega/scatterplot :log-predicted
                                 :log-actual
-                                {:label-key :cluster}))]]))
+                                ;; {:label-key :cluster}
+                                ))]]))
 
 ^k/hiccup
 (->> [training-context-3 test-context-3]
      (map evaluate)
      (into [:div]))
 
-[:END]
+(println "done")
