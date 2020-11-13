@@ -15,9 +15,10 @@
 
  "Analysing NYC taxi trip durations, inspired by [Beluga](https://www.kaggle.com/gaborfodor)'s [Kaggle kernel](https://www.kaggle.com/gaborfodor/from-eda-to-the-top-lb-0-367)."
 
-"## The stack
+ "## The stack -- 
 
- We will be using libraries by Haifeng Li, Tomasz Sulej and Chris Nuernberger.
+We will be mainbly using libraries by Haifeng Li, Tomasz Sulej and Chris Nuernberger.
+Here are the main ones (and their depednencies upon each other).
 
  `smile` (Haifeng) - ML algorithms
 
@@ -33,7 +34,9 @@
  ----> `tech.ml.dataset`, `tech.datatype`
 
  `tech.ml` (Chris) - ML platform
- ----> `tech.ml.dataset`, `tech.datatype`, `smile`"]
+ ----> `tech.ml.dataset`, `tech.datatype`, `smile`
+
+ `tech.viz` (Chris) - visualization (un top of Vega)"]
 
 ["## Setup"]
 
@@ -84,21 +87,21 @@ Our task is to predict a trip's duration using our knowledge at the beginning of
 
 ^k/void
 (defonce original-dataset
-  (t/dataset "data/nyc-taxi-trip-duration/train.csv"
+  (t/dataset "data/nyc-taxi-trip-duration/train-sample0.05.csv.gz"
              {:key-fn ->column-name}))
 
 ["Let us look into the data. The `:trip-duration` column is the one to be predicted."]
 
 ^k/dataset
-original-dataset
+(-> original-dataset
+    (ds/sample 100 {:seed 1}))
 
-["For this learning project, we will use a sample of the original data. Note thart we are removing some columns which are unnecessary (and are not supposed to be known at the time of prediction, which is the beginning of the ride.)"]
+["For this learning project, we are removing some columns which are unnecessary (and are not supposed to be known at the time of prediction, which is the beginning of the ride.)"]
 
 (def learning-dataset
   (-> original-dataset
       (ds/sample 100000 {:seed 1})
       (t/drop-columns [:id :dropoff-datetime])))
-
 
 ["Splitting to training and testing (note that the test set does not contain the column to be predicted):"]
 
@@ -148,7 +151,7 @@ Here we demonstrate just a tiny bit of the useful ways to add informative column
                 popup
                 color-fn
                 radius]
-         :or   {sample-size 10000
+         :or   {sample-size 1000
                 radius 2}}]
      [:div {:style {:width 100}}
       [:link {:rel  "stylesheet"
@@ -309,7 +312,7 @@ Here we demonstrate just a tiny bit of the useful ways to add informative column
 
 ^k/dataset
 (-> training-context-2
-    t/dataset
+    :dataset
     (ds/sample 100 {:seed 1}))
 
 ^k/vega
@@ -396,5 +399,4 @@ Here we demonstrate just a tiny bit of the useful ways to add informative column
      (map evaluate)
      (into [:div]))
 
-
-
+[:END]
