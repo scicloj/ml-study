@@ -1,14 +1,12 @@
 # taxi-demo-1
 
-A Clojure library designed to ... well, that part is up to you.
+Predicting taxi trip durations.
 
-## Usage
-
-FIXME
+See [the rendered notespace](doc/taxi-demo-1/core/).
 
 ## License
 
-Copyright © 2020 FIXME
+Copyright © 2020 scicloj
 
 This program and the accompanying materials are made available under the
 terms of the Eclipse Public License 2.0 which is available at
