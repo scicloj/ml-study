@@ -1,5 +1,5 @@
 (ns taxi-demo-1.core
-  (:require [notespace.api :as ns :refer [view]]
+  (:require [notespace.api :as ns]
             [notespace.kinds :as k]
             [tablecloth.api :as t]))
 
@@ -9,6 +9,8 @@
   (ns/init)
   (ns/listen)
   (ns/unlisten)
+  (notespace.state/single-note-mode?)
+  (ns/toggle-single-note-mode true)
   (ns/render-static-html))
 
 ["# Taxi Demo 1"
@@ -102,10 +104,15 @@ Our task is to predict a trip's duration using our knowledge at the beginning of
 
 (def learning-dataset
   (-> original-dataset
-      (ds/sample 100000 {:seed 1})
+      (ds/sample 10000 {:seed 1})
       (t/drop-columns [:id :dropoff-datetime])))
 
-["Splitting to training and testing (note that the test set does not contain the column to be predicted):"]
+#_
+(-> learning-dataset
+    (t/rows :as-maps)
+    (->> (take 9)))
+
+["Splitting to training and test (note that the test set does not contain the column to be predicted):"]
 
 (def split-dataset
   (modelling/train-test-split learning-dataset))
@@ -146,7 +153,6 @@ Here we demonstrate just a tiny bit of the useful ways to add informative column
                   (format "#%02x%02x%02x" r g b))))))
 
 (def draw-on-map
-  (memo
    (fn [dataset
         {:keys [sample-size
                 lat long
@@ -175,7 +181,7 @@ Here we demonstrate just a tiny bit of the useful ways to add informative column
                           :weight      0
                           :radius radius
                           :popup       (when popup
-                                         (popup row))})))))]])))
+                                         (popup row))})))))]]))
 
 ^k/hiccup
 (-> training-dataset
@@ -184,20 +190,18 @@ Here we demonstrate just a tiny bit of the useful ways to add informative column
 
 ["### Clusters of pickup locations"]
 
-(def n-clusters 10)
-
 (def compute-pickup-clustering
-  (memo
-   (fn [dataset]
+   (fn [dataset {:keys [n-clusters]}]
+     (smile.math.MathEx/setSeed 988779)
      (-> dataset
          (t/select-columns [:pickup-latitude :pickup-longitude])
          (ds/sample 10000 {:seed 1})
          t/rows
-         (fm.clustering/k-means n-clusters)))))
+         (fm.clustering/k-means n-clusters))))
 
 ^k/dataset
 (-> training-dataset
-    compute-pickup-clustering
+    (compute-pickup-clustering {:n-clusters 10})
     :representatives
     (->> (map (fn [[long lat]]
                 {:repr-latitude  lat
@@ -208,7 +212,7 @@ Here we demonstrate just a tiny bit of the useful ways to add informative column
 
 ^k/hiccup
 (-> training-dataset
-    compute-pickup-clustering
+    (compute-pickup-clustering {:n-clusters 10})
     :representatives
     (->> (map (fn [[long lat]]
                 {:repr-latitude  lat
@@ -239,27 +243,27 @@ Here we demonstrate just a tiny bit of the useful ways to add informative column
                                                :rainbow)})))
 
 ^k/hiccup
-(let [clustering (compute-pickup-clustering training-dataset)]
+(let [clustering (compute-pickup-clustering training-dataset {:n-clusters 10})]
   (-> training-dataset
       (ds/sample 5000 {:seed 1})
       (apply-pickup-clustering clustering)
       draw-pickup-clusters))
 
 (def compute-and-apply-pickup-clustering
-  (memo
-   (fn [{:keys [dataset training?]
+   (fn [{:keys [dataset training? n-clusters]
          :as   context}]
      (let [pickup-clustering (if training?
-                               (compute-pickup-clustering dataset)
+                               (compute-pickup-clustering dataset {:n-clusters n-clusters})
                                (:pickup-clustering context))]
        (assoc
         context
         :dataset (-> dataset
                      (apply-pickup-clustering pickup-clustering))
-        :pickup-clustering pickup-clustering)))))
+        :pickup-clustering pickup-clustering))))
 
 (def training-context-1
   (-> training-context
+      (merge {:n-clusters 10})
       compute-and-apply-pickup-clustering))
 
 (def test-context-1
@@ -280,17 +284,22 @@ Here we demonstrate just a tiny bit of the useful ways to add informative column
 
 ["### More features"]
 
+(def haversine-kilometers-multiplier 6371)
+(def haversine-miles-multiplier 3958.756)
+
 (defn add-distance-feature [dataset]
   (-> dataset
       (t/add-or-replace-columns
+       ;; https://stackoverflow.com/a/26393502https://stackoverflow.com/a/26393502fduu
        {:distance           #(dtype/->double-array
-                              (map fm/haversine-dist
-                                   (% :pickup-longitude)
+                              (map (comp (partial * haversine-kilometers-multiplier)
+                                         fm/haversine-dist)
                                    (% :pickup-latitude)
-                                   (% :dropoff-longitude)
-                                   (% :dropoff-latitude)))})))
+                                   (% :pickup-longitude)
+                                   (% :dropoff-latitude)
+                                   (% :dropoff-longitude)))})))
 
-(defn one-hot-encode-pickup-clusters [dataset]
+(defn one-hot-encode-pickup-clusters [dataset n-clusters]
   (let [[n _] (t/shape dataset)]
     (-> dataset
         (t/add-or-replace-columns
@@ -306,7 +315,6 @@ Here we demonstrate just a tiny bit of the useful ways to add informative column
         (t/drop-columns [:pickup-cluster-str]))))
 
 (def preprocess
-  (memo
    (fn [{:keys [dataset training?]
          :as   context}]
      (merge
@@ -314,8 +322,8 @@ Here we demonstrate just a tiny bit of the useful ways to add informative column
       {:dataset
        (-> dataset
            add-distance-feature
-           one-hot-encode-pickup-clusters
-           (t/drop-columns [:pickup-datetime :store-and-fwd-flag]))}))))
+           (one-hot-encode-pickup-clusters (:n-clusters context))
+           (t/drop-columns [:pickup-datetime :store-and-fwd-flag]))})))
 
 (def training-context-2
   (-> training-context-1
@@ -330,20 +338,37 @@ Here we demonstrate just a tiny bit of the useful ways to add informative column
     :dataset
     (ds/sample 100 {:seed 1}))
 
-^k/vega
-(-> training-context-2
-    :dataset
-    (t/column :trip-duration)
-    dfn/log1p
-    (viz-vega/histogram "log(trip duration)"
-                        {:bin-count 100}))
+ ^k/hiccup
+ [:div
+  [:p/vega
+   (-> training-context-2
+       :dataset
+       (t/column :trip-duration)
+       (viz-vega/histogram "trip duration"
+                           {:bin-count 100}))]
+  [:p/vega
+   (-> training-context-2
+       :dataset
+       (t/column :trip-duration)
+       dfn/log1p
+       (viz-vega/histogram "log(trip duration)"
+                           {:bin-count 100}))]]
 
-^k/vega
-(-> training-context-2
-    :dataset
-    (t/column :distance)
-    (viz-vega/histogram "distance"
-                        {:bin-count 100}))
+^k/hiccup
+[:div
+ [:p/vega
+  (-> training-context-2
+      :dataset
+      (t/column :distance)
+      (viz-vega/histogram "distance"
+                          {:bin-count 100}))]
+ [:p/vega
+  (-> training-context-2
+      :dataset
+      (t/column :distance)
+      dfn/log1p
+      (viz-vega/histogram "log(distance)"
+                          {:bin-count 100}))]]
 
 ^k/vega
 (-> training-context-2
@@ -365,7 +390,6 @@ Here we demonstrate just a tiny bit of the useful ways to add informative column
     (viz-vega/scatterplot
      :distance :trip-duration))
 
-
 ["## Training & Prediction"]
 
 (def target :trip-duration)
@@ -376,7 +400,6 @@ Here we demonstrate just a tiny bit of the useful ways to add informative column
                  :accuracy   0.01})))
 
 (def compute-and-apply-model
-  (memo
    (fn [{:keys [dataset training?]
          :as   context}]
      (let [model               (if training?
@@ -389,7 +412,7 @@ Here we demonstrate just a tiny bit of the useful ways to add informative column
         :predicted (-> dataset
                        (ml/predict model)
                        (t/column target))
-        :model model)))))
+        :model model))))
 
 (def training-context-3
   (-> training-context-2
@@ -425,5 +448,67 @@ Here we demonstrate just a tiny bit of the useful ways to add informative column
 (->> [training-context-3 test-context-3]
      (map evaluate)
      (into [:div]))
+
+["Comparing different flows"]
+
+(defn pipeline [context hyperparams]
+  (-> context
+      (merge hyperparams)
+      compute-and-apply-pickup-clustering
+      preprocess
+      compute-and-apply-model))
+
+
+
+(defn compute-final-contexts [initial-contexts
+                              hyperparams]
+  (let [final-training-context (-> initial-contexts
+                                   :training
+                                   (pipeline hyperparams))
+        final-test-context     (-> initial-contexts
+                                   :test
+                                   (merge (select-keys final-training-context
+                                                       [:pickup-clustering
+                                                        :model]))
+                                   (pipeline hyperparams))]
+    {:training final-training-context
+     :test     final-test-context}))
+
+(defn evaluate-final-context [{:keys [title dataset predicted]
+                               :as   context}]
+  (let [actual (t/column dataset target)]
+    [:div
+     [:h1 title]
+     [:h2 "Loss: " (loss/mae predicted actual)]
+     [:p/vega
+      (-> {:log-predicted (dfn/log predicted)
+           :log-actual    (dfn/log actual)
+           ;; :cluster (t/column dataset :pickup-cluster)
+           }
+          t/dataset
+          (t/rows :as-maps)
+          (viz-vega/scatterplot :log-predicted
+                                :log-actual
+                                ;; {:label-key :cluster}
+                                ))]]))
+
+(def hyperparams-sets
+  (for [n-clusters [10 100]]
+    {:n-clusters n-clusters}))
+
+^k/hiccup
+(->> hyperparams-sets
+     (map (fn [hyperparams]
+            (let [final-contexts (compute-final-contexts
+                                  {:training training-context
+                                   :test     test-context}
+                                  hyperparams)]
+              (->> [:training :test]
+                   (map final-contexts)
+                   (map evaluate-final-context)
+                   (into [:div
+                          [:h1 (pr-str hyperparams)]])))))
+     (into [:div]))
+
 
 (println "done")
