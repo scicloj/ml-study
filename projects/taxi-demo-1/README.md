@@ -2,7 +2,7 @@
 
 Predicting taxi trip durations.
 
-See [the rendered notespace](https://scicloj.github.io/ml-study/projects/taxi-demo-1/doc/taxi-demo-1/core/).
+See [the rendered notespace](https://scicloj.github.io/ml-study/projects/taxi-demo-1/docs/taxi-demo-1/ml/).
 
 
 ## License
