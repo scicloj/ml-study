@@ -401,6 +401,7 @@ See the JTS [SearchUsingPreparedGeometryIndex tutorial](https://github.com/locat
 
 ["## Mean durations by neighbourhoods and hour"]
 
+^kind/dataset
 (delay
   (-> (taxi-data-with-neighbourhoods)
       :data
