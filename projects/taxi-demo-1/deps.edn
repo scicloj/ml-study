@@ -1,8 +1,9 @@
 {:deps {org.clojure/clojure {:mvn/version "1.10.2"}
-        scicloj/tablecloth  {:mvn/version "5.00-beta-29.1"}
-        generateme/fastmath {:mvn/version "2.1.0"}
-        scicloj/notespace   {:mvn/version "3-beta4"}
-        techascent/tech.viz {:mvn/version "0.4.3"}
+        scicloj/tablecloth  {:mvn/version "6.002"}
+        generateme/fastmath {:mvn/version "2.1.5"}
+        scicloj/notespace   {:mvn/version "3-beta7"}
+        techascent/tech.viz {:mvn/version "6.00-beta-16-2"}
+        techascent/tech.ml {:mvn/version "6.001"}
         aerial.hanami/aerial.hanami {:mvn/version "0.12.7"}
         org.clojure/core.memoize {:mvn/version "1.0.236"}
         com.rpl/specter {:mvn/version "1.1.3"}
