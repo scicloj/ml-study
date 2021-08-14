@@ -10,6 +10,7 @@
 
 ^kind/hidden
 (comment
+  (notespace/init-with-browser)
   (notespace/listen))
 
 ["Inspired by:
