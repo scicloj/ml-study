@@ -34,3 +34,68 @@ original-img
 
 original-tensor
 
+(type original-tensor)
+
+(dtype/shape original-tensor)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+
+
+
+;; a reader -- an abstract notion of an array tha can only be read
+
+
+(def x
+  (dtype/make-reader :int64 9999 (* idx idx)))
+
+x
+
+(def y
+  (dtype/->reader [1 54 1 5] :int64))
+
+y
+
+(dtype/elemwise-datatype x)
+
+(dtype/elemwise-datatype y)
+
+(def z
+  (dtype/->int-array [1 5 1 51 185 10]))
+
+z
+
+(type z)
+
+
+(def w
+  (-> z
+      (fun/* 1000)
+      (fun/+ (rand-int 10))
+      dtype/clone))
+
+w
+
+
+;; readers are lazy, non-caching by default
+
+;; clone makes it actually remember
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+(def t
+  (tensor/compute-tensor [2 3 4000]
+                         (fn [i j k]
+                           (+ (rand)
+                              i
+                              (* 10 j)
+                              (* 100 k)))
+                         :float32))
+
+t
+
+
+
+
