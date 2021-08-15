@@ -7,4 +7,5 @@
          scicloj/tablecloth  {:mvn/version "6.006"}
          generateme/fastmath {:mvn/version "2.1.5"}
          scicloj/notespace   {:mvn/version "3-beta8-SNAPSHOT"}
-         clojure2d/clojure2d {:mvn/version "1.4.3"}}}
+         clojure2d/clojure2d {:mvn/version "1.4.3"}
+         aerial.hanami/aerial.hanami {:mvn/version "0.12.7"}}}
