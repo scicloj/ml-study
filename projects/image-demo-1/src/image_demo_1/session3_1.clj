@@ -53,17 +53,22 @@ original-shape
     (tensor/slice-right 1))
 
 
-;; the green component:
+(def blue
+  (-> original-tensor
+      (tensor/slice-right 1)
+      (nth 0)))
 
 (def green
   (-> original-tensor
       (tensor/slice-right 1)
       (nth 1)))
 
+(def red
+  (-> original-tensor
+      (tensor/slice-right 1)
+      (nth 2)))
 
-(-> original-tensor
-    (tensor/slice-right 1)
-    (nth 1)
+(-> green
     dtype/shape)
 
 
@@ -97,7 +102,8 @@ original-shape
 
 (-> (tensor/compute-tensor original-shape
                            (fn [i j k]
-                             (if (> (green i j) 180)
+                             (if (> (green i j)
+                                    (* 1.5 (blue i j)))
                                0
                                (original-tensor i j k)))
                            :uint8)
