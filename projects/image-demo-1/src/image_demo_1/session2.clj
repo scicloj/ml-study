@@ -38,3 +38,45 @@ original-tensor
 
 (dtype/shape original-tensor)
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+
+(def a1
+  (dtype/->int-array [1 4 1 7 -9 1]))
+
+a1
+
+(def r1
+  (dtype/->reader a1))
+
+r1
+
+(r1 4)
+
+(def r2
+  (dtype/make-reader :int32
+                     10000
+                     (* idx idx)))
+
+(r2 12)
+
+
+(def r3
+  (dtype/make-reader :int32
+                     100
+                     (rand-int 9999)))
+
+(r3 12)
+
+r3
+
+;; This reader is lazy and non-caching.
+
+
+(def r4
+  (dtype/clone r3))
+
+(r4 12)
+
+r4
