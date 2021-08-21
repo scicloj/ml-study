@@ -24,6 +24,12 @@
     {:render-src?   true
      :value->hiccup show}))
 
+(extend-type tech.v3.dataset.impl.dataset.Dataset
+  notespace.behavior/Behaving
+  (->behavior [this]
+    {:render-src?   true
+     :value->hiccup #'notespace.view/dataset->md-hiccup}))
+
 (defn tensor->img [t]
   (let [shape (dtype/shape t)
         new-img (bufimg/new-image (shape 0)
