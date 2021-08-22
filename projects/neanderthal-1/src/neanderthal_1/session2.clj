@@ -13,21 +13,29 @@
              [cuda :refer [cuv cuge with-default-engine]]
              [opencl :as cl :refer [clv]]
              [random :refer [rand-uniform!]]]
-            [criterium.core :refer :all]
-            [tech.v3.datatype :as dtype]
-            [tech.v3.datatype.functional :as fun]
             [notespace.api :as notespace]
             [neanderthal-1.plot :as plot]))
 
 
 (def v1 (dv 1 2))
 
+v1
+
 (def v2 (dv -1 3))
+
+v2
 
 (def v1+v2 (axpy v1 v2))
 
+v1+v2
+
 (def v1*3 (scal 3 v1))
 
+v1*3
+
+(plot/plot-vs [v1 v2 v1+v2])
+
+(plot/plot-vs [v1 v1*3])
 
 (plot/plot-vs [v1 v2 v1+v2 v1*3])
 
@@ -38,6 +46,9 @@
 
 
 (f1 (dv 1 2))
+
+
+;; Intel MKL
 
 
 ;; parallelogram
@@ -74,10 +85,11 @@ v1+v2
 ;; f1 is linear -- additive and respects scaling
 
 
+;; translation is not considered linear
+;; but rather "affine"
 
 
-
-(def random-vectors
+(defonce random-vectors
   (repeatedly
    4
    (fn []
@@ -105,17 +117,31 @@ random-vectors
 
 ;;
 
-
-(defn new-2x2-matrix [a b c d]
-  (let [m (dge 2 2)]
-    (copy! (dv a b) (row m 0))
-    (copy! (dv c d) (row m 1))
-    m))
-
 (def m1
-  (new-2x2-matrix 1 2 3 4))
+  (dge 2 2 [1 2 3 4]))
 
 m1
+
+
+;; (def m2
+;;   (new-2x1-matrix 1 2))
+
+(def m2 (dge 2 1 [1 2]))
+
+m2
+
+
+(mm m1 m2)
+
+
+
+;; m1 2x2
+;; m2 2x1
+
+
+
+
+
 
 
 (mv m1 (dv 0 0))
@@ -137,22 +163,22 @@ m1
 
 
 (plot/plot-change (fn [v] (mv 
-                           (new-2x2-matrix 1 0
-                                           0 2)
+                           (dge 2 2 [1 0
+                                     0 2])
                            v))
                   random-vectors)
 
 
 (plot/plot-change (fn [v] (mv 
-                           (new-2x2-matrix -3 0
-                                           0 2)
+                           (dge 2 2 [-3 0
+                                    0 2])
                            v))
                   random-vectors)
 
 
 (defn rot [theta]
-  (new-2x2-matrix (cos theta) (- (sin theta))
-                  (sin theta) (cos theta)))
+  (dge 2 2 [(cos theta) (- (sin theta))
+            (sin theta) (cos theta)]))
 
 
 (plot/plot-change #(mv (rot 0.2) %)
@@ -160,8 +186,8 @@ m1
 
 
 (defn rescale-y [scale]
-  (new-2x2-matrix 1 0
-                  0 scale))
+  (dge 2 2 [1 0
+            0 scale]))
 
 
 (plot/plot-change #(mv (rescale-y 2) %)

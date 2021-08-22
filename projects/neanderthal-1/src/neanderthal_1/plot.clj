@@ -38,13 +38,11 @@
                                     {:x (v 0)
                                      :y (v 1)
                                      :c i})))
-         segments (map (fn [row next-row]
-                         (merge row
-                                {:x2 (:x next-row)
-                                 :y2 (:y next-row)}))
-                       points
-                       (concat (rest points)
-                               [(first points)]))]
+         segments (->> points
+                       (map (fn [point]
+                              (merge point
+                                     {:x2 (:x 0)
+                                      :y2 (:y 0)}))))]
      (-> (hc/xform ht/layer-chart
                    :LAYER [(hc/xform ht/point-chart
                                      :DATA segments
