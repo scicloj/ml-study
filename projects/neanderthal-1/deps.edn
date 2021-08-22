@@ -1,4 +1,8 @@
-{:deps
+{:paths ["src" "resources"]
+ :deps
  {criterium/criterium {:mvn/version "0.4.6"}
   uncomplicate/neanderthal {:mvn/version "0.43.1"}
-  org.bytedeco/mkl-platform-redist {:mvn/version "2020.3-1.5.4"}}}
+  org.bytedeco/mkl-platform-redist {:mvn/version "2020.3-1.5.4"}
+  cnuernber/dtype-next {:mvn/version "8.024"}
+  scicloj/notespace {:mvn/version "3-beta9"}
+  aerial.hanami/aerial.hanami {:mvn/version "0.12.7"}}}
