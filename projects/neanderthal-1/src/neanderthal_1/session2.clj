@@ -16,6 +16,13 @@
             [notespace.api :as notespace]
             [neanderthal-1.plot :as plot]))
 
+["Chaotic notes from ml-study session 17.1,17.2,17.3 -- linear algebra with Neanderthal.
+
+[See the source.](https://github.com/scicloj/ml-study/blob/main/projects/neanderthal-1/src/neanderthal_1/session2.clj)
+
+-----------------------------------------"]
+
+(require '[neanderthal-1.plot :as plot])
 
 (def v1 (dv 1 2))
 
