@@ -125,7 +125,9 @@ random-vectors
 ;;
 
 (def m1
-  (dge 2 2 [1 2 3 4]))
+  (dge 2 2 [1 2
+            3 4]
+       {:layout :row}))
 
 m1
 
@@ -178,14 +180,15 @@ m2
 
 (plot/plot-change (fn [v] (mv 
                            (dge 2 2 [-3 0
-                                    0 2])
+                                      0 2])
                            v))
                   random-vectors)
 
 
 (defn rot [theta]
   (dge 2 2 [(cos theta) (- (sin theta))
-            (sin theta) (cos theta)]))
+            (sin theta) (cos theta)]
+       {:layout :row}))
 
 
 (plot/plot-change #(mv (rot 0.2) %)
@@ -199,8 +202,6 @@ m2
 
 (plot/plot-change #(mv (rescale-y 2) %)
                   random-vectors)
-
-
 
 
 
