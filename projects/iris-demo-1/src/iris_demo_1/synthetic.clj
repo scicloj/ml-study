@@ -232,13 +232,11 @@
                           :result-dissoc-seq []}))
 
 
-(def models
-  (->> evaluations
-       flatten
-       (map (fn [evaluation]
-              (merge (select-keys  evaluation [:mean :metric])
-                     (-> evaluation :fit-ctx :options))))
-       (sort-by :metric)
-       reverse
-       table/dataset))
-
+(->> evaluations
+     flatten
+     (map (fn [evaluation]
+            (merge (select-keys  evaluation [:mean :metric])
+                   (-> evaluation :fit-ctx :options))))
+     (sort-by :metric)
+     reverse
+     table/dataset)
