@@ -23,6 +23,7 @@
   (morph/pipeline
    (mlmorph/set-inference-target :class)
    (mlmorph/categorical->number [:class])
+   (mlmorph/select-columns [:petalwidth :cluster :class])
    (morphml/model {:model-type :smile.classification/decision-tree
                    :max-nodes 2})))
 
@@ -40,46 +41,55 @@
 (morphml/evaluate-pipelines
  [pipeline-1]
  (table/split->seq (:train-ds split)
-                   :kfold)
+                   :kfold
+                   {:seed 1})
  loss/classification-accuracy
  :accuracy)
 
-
-(defn cluster [ctx]
-  (case (:metamorph/mode ctx)
-    :fit (let [id (:metamorph/id ctx)
-               clustering (-> ctx
-                              :metamorph/data
-                              (table/select-columns
-                               [:sepallength :sepalwidth :petallength :petalwidth])
-                              table/rows
-                              (clustering/k-means 3))]
-           (assoc ctx id clustering))
-    :transform (let [id (:metamorph/id ctx)
-                     clustering (ctx id)
-                     clusters (-> ctx
-                                  :metamorph/data
-                                  (table/select-columns
-                                   [:sepallength :sepalwidth :petallength :petalwidth])
-                                  table/rows
-                                  (->> (map
-                                        (partial clustering/predict clustering))))]
-                 (-> ctx
-                     (update :metamorph/data
-                             table/add-column :cluster clusters)))))
 
 
 (defn print-data [ctx]
   (println (:metamorph/data ctx))
   ctx)
 
+
+(defn compute-clustering [rows]
+  (-> rows
+      (clustering/k-means 6)))
+
+
+(defn cluster [ctx]
+  (let [mode (:metamorph/mode ctx)
+        id (:metamorph/id ctx)
+        clustering (case mode
+                     :fit (-> ctx
+                              :metamorph/data
+                              (table/select-columns
+                               [:sepallength :sepalwidth :petallength :petalwidth])
+                              table/rows
+                              compute-clustering)
+                     :transform (ctx id))
+        clusters (-> ctx
+                     :metamorph/data
+                     (table/select-columns
+                      [:sepallength :sepalwidth :petallength :petalwidth])
+                     table/rows
+                     (->> (map
+                           (partial clustering/predict clustering))))]
+    (cond-> ctx
+      (= mode :fit) (assoc id clustering)
+      true          (update :metamorph/data
+                            table/add-column :cluster clusters))))
+
 (def pipeline-2
   (morph/pipeline
    (mlmorph/set-inference-target :class)
    (mlmorph/categorical->number [:class])
    cluster
-   print-data
-   (morphml/model {:model-type :smile.classification/decision-tree})))
+   (mlmorph/select-columns
+    [:petalwidth :cluster :class])
+   (morphml/model {:model-type :smile.classification/decision-tree
+                   :max-nodes 2})))
 
 (def trained-ctx-2
   (pipeline-2
@@ -96,8 +106,8 @@
       [pipeline-1 pipeline-2]
       (table/split->seq (:train-ds split)
                         :kfold
-                        {:k 5})
-     loss/classification-accuracy
+                        {:k 20})
+      loss/classification-accuracy
      :accuracy
      {:return-best-pipeline-only        false
       :return-best-crossvalidation-only true})
