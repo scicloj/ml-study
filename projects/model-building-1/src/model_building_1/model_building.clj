@@ -130,7 +130,7 @@
                     mmml/options->model-def)}))
 
 (defn explain [{:keys [model model-def]}]
-  (mmml/explain model model-def-1))
+  (mmml/explain model model-def))
 
 (defn println-model [{:keys [model model-def]}]
   (-> model
