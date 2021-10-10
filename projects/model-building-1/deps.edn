@@ -1,5 +1,5 @@
 {:paths ["src" "resources"]
  :deps {scicloj/scicloj.ml  {:mvn/version "0.1.0-beta3"}
-        scicloj/notespace   {:mvn/version "4-pre-alpha-2-SNAPSHOT"}
+        scicloj/notespace   {:mvn/version "4-pre-alpha-3-SNAPSHOT"}
         org.scicloj/viz.clj {:mvn/version "0.1.0-SNAPSHOT"}
         techascent/tech.viz {:mvn/version "6.00-beta-16-2"}}}
