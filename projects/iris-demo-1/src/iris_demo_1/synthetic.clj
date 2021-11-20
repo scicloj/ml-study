@@ -1,17 +1,15 @@
 (ns iris-demo-1.synthetic
   (:require [notespace.api]))
 
-(require '[tablecloth.api :as table]
-         '[tech.v3.dataset.modelling :as modelling]
-         '[tech.v3.dataset :as dataset]
-         '[scicloj.metamorph.core :as morph]
-         '[scicloj.ml.core :as ml]
-         '[scicloj.metamorph.ml :as morphml]
-         '[scicloj.metamorph.ml.loss :as loss]
+(require '[scicloj.ml.core :as ml]
          '[scicloj.ml.metamorph :as mlmorph]
+         '[scicloj.ml.dataset :as ds]
+
          '[scicloj.ml.smile.classification]
+
          '[fastmath.clustering :as clustering]
          '[fastmath.random :as random]
+
          '[scicloj.viz.api :as viz]
          '[aerial.hanami.common :as hc]
          '[aerial.hanami.templates :as ht]
@@ -42,10 +40,10 @@
                                                (center 1)
                                                100
                                                rng)
-                                (table/dataset)
-                                (table/add-column :class i))))
-             (apply table/bind))
-        (table/random {:seed 1}) )))
+                                (ds/dataset)
+                                (ds/add-column :class i))))
+             (apply ds/bind))
+        (ds/random {:seed 1}))))
 
 (-> dataset-1
     viz/data
@@ -55,13 +53,13 @@
 
 (def split
   (-> dataset-1
-      (modelling/train-test-split)))
+      (ds/train-test-split)))
 
 (def pipeline-1
-  (morph/pipeline
+  (ml/pipeline
    (mlmorph/set-inference-target :class)
    (mlmorph/categorical->number [:class])
-   (morphml/model {:model-type :smile.classification/decision-tree
+   (mlmorph/model {:model-type :smile.classification/decision-tree
                    :max-nodes  5})))
 
 (def trained-ctx-1
@@ -89,12 +87,12 @@
                           viz/viz)
                       (-> split
                           :train-ds
-                          (table/select-columns [:x :y])
-                          table/rows
+                          (ds/select-columns [:x :y])
+                          ds/rows
                           (clustering/k-means 8)
                           :representatives
                           (->> (map #(zipmap [:x :y] %)))
-                          table/dataset
+                          ds/dataset
                           viz/data
                           (viz/type "point")
                           (assoc :SIZE 200
@@ -109,30 +107,30 @@
         clustering (case mode
                      :fit (-> ctx
                               :metamorph/data
-                              (table/select-columns
+                              (ds/select-columns
                                [:x :y])
-                              table/rows
+                              ds/rows
                               (clustering/k-means 8))
                      :transform (ctx id))
         clusters (-> ctx
                      :metamorph/data
-                     (table/select-columns
+                     (ds/select-columns
                       [:x :y])
-                     table/rows
+                     ds/rows
                      (->> (map
                            (partial clustering/predict clustering))))]
     (cond-> ctx
       (= mode :fit) (assoc id clustering)
       true          (update :metamorph/data
-                            table/add-column :cluster clusters))))
+                            ds/add-column :cluster clusters))))
 
 
 (def pipeline-2
-  (morph/pipeline
+  (ml/pipeline
    (mlmorph/set-inference-target :class)
    (mlmorph/categorical->number [:class])
    cluster
-   (morphml/model {:model-type :smile.classification/decision-tree
+   (mlmorph/model {:model-type :smile.classification/decision-tree
                    :max-nodes  5})))
 
 
@@ -151,9 +149,9 @@
 
 (-> predicted-ctx-1
     :scicloj.metamorph.ml/feature-ds
-    (table/add-column :predicted-class (-> predicted-ctx-1
-                                           :metamorph/data
-                                           :class))
+    (ds/add-column :predicted-class (-> predicted-ctx-1
+                                        :metamorph/data
+                                        :class))
     viz/data
     (viz/type "point")
     (viz/color "predicted-class")
@@ -161,29 +159,32 @@
 
 (-> predicted-ctx-2
     :scicloj.metamorph.ml/feature-ds
-    (table/add-column :predicted-class (-> predicted-ctx-2
-                                           :metamorph/data
-                                           :class))
+    (ds/add-column :predicted-class (-> predicted-ctx-2
+                                        :metamorph/data
+                                        :class))
     viz/data
     (viz/type "point")
     (viz/color "predicted-class")
     viz/viz)
 
+(println
+ (->> (ml/evaluate-pipelines
+       [pipeline-1 pipeline-2]
+       (ds/split->seq (:train-ds split)
+                      :kfold
+                      {:k 20})
 
-(->> (morphml/evaluate-pipelines
-      [pipeline-1 pipeline-2]
-      (table/split->seq (:train-ds split)
-                        :kfold
-                        {:k 20})
-      loss/classification-accuracy
-      :accuracy
-      {:return-best-pipeline-only        false
-       :return-best-crossvalidation-only true})
-     (map (fn [cases]
-            (->> cases
-                 (map (fn [case]
-                        (-> case
-                            (select-keys [:metric :min :mean :max]))))))))
+       ml/classification-accuracy
+       :accuracy
+       {:return-best-pipeline-only        false
+        :return-best-crossvalidation-only true})
+      (map (fn [cases]
+             (->> cases
+                  (map (fn [case]
+                         (-> case
+                             (select-keys [:metric :min :mean :max])))))))))
+
+
 
 
 
@@ -194,13 +195,13 @@
 
 (defn make-pipeline-fn [{:keys [model-type max-nodes cluster?]
                          :as options}]
-  (morph/pipeline
+  (ml/pipeline
    (fn [ctx]
-      (assoc ctx :options options))
+     (assoc ctx :options options))
    (mlmorph/set-inference-target :class)
    (mlmorph/categorical->number [:class])
    (if cluster? cluster identity)
-   (morphml/model {:model-type model-type 
+   (mlmorph/model {:model-type model-type
                    :max-nodes  max-nodes
                    :cluster? cluster})))
 
@@ -217,9 +218,9 @@
 (def pipeline-fns (map make-pipeline-fn search-grid))
 
 (def train-val-splits
-  (table/split->seq (:train-ds split)
-                    :kfold
-                    {:k 10}))
+  (ds/split->seq (:train-ds split)
+                 :kfold
+                 {:k 10}))
 
 (def evaluations
   (ml/evaluate-pipelines pipeline-fns
@@ -231,12 +232,12 @@
                           :map-fn            :pmap
                           :result-dissoc-seq []}))
 
-
-(->> evaluations
-     flatten
-     (map (fn [evaluation]
-            (merge (select-keys  evaluation [:mean :metric])
-                   (-> evaluation :fit-ctx :options))))
-     (sort-by :metric)
-     reverse
-     table/dataset)
+(println
+ (->> evaluations
+      flatten
+      (map (fn [evaluation]
+             (merge (select-keys  evaluation [:mean :metric])
+                    (-> evaluation :fit-ctx :options))))
+      (sort-by :metric)
+      reverse
+      ds/dataset))
